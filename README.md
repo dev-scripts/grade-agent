@@ -1,8 +1,8 @@
 # grade-agent
 
 A Node.js agent built on the Claude Agent SDK that grades a CSV of student
-marks. The whole behaviour lives in a skill — `src/index.js` is just a thin
-shim that hands the request to the SDK, which auto-discovers the skill from
+marks. The whole behaviour lives in a skill — `src/index.js` is a thin shim
+that hands the request to the SDK, which auto-discovers the skill from
 `.claude/skills/`.
 
 ## Layout
@@ -12,62 +12,68 @@ grade-agent/
 ├── package.json
 ├── .env.example
 ├── data/
-│   └── sample-marks.csv
+│   └── sample-marks.csv        # sample input
+├── output/                     # generated on first run
+│   ├── graded.csv
+│   └── report.md
 ├── .claude/
 │   └── skills/
 │       └── grade-csv/
-│           ├── SKILL.md          # rules + output format + workflow (source of truth)
-│           └── scripts/
-│               └── grade.mjs     # bundled CLI; parses rules from SKILL.md
+│           ├── SKILL.md        # grading rules + workflow (source of truth)
+│           └── templates/
+│               ├── graded.template.md   # CSV column layout spec
+│               └── report.template.md  # markdown report skeleton
 └── src/
-    └── index.js                  # ~30 lines — just calls query()
+    └── index.js                # ~30 lines — just calls query()
 ```
 
 ## How the pieces fit
 
-1. **`SKILL.md`** holds the band table, the graded-CSV column spec, and the
-   report template. It's the only place rules live.
-2. **`scripts/grade.mjs`** reads `SKILL.md` at startup, parses those three
-   things out of it, and uses them to compute and write outputs.
-3. **`src/index.js`** doesn't read SKILL.md, doesn't pick tools, doesn't
-   build a system prompt. It calls `query()` with `settingSources:
-   ["project"]` and `skills: "all"`; the SDK discovers the skill in
-   `.claude/skills/grade-csv/` and Claude invokes it based on the
-   description match.
+1. **`SKILL.md`** holds the grading band table and the step-by-step workflow.
+   It's the only place grading rules live.
+2. **`templates/graded.template.md`** defines the output CSV column layout —
+   per-subject `_letter` / `_gpa` columns followed by `average`,
+   `overall_letter`, and `overall_gpa`.
+3. **`templates/report.template.md`** is the markdown report skeleton with
+   `{{students}}`, `{{mean_average}}`, `{{distribution_table}}`, and
+   `{{students_table}}` as substitution placeholders.
+4. **`src/index.js`** doesn't read any of those files directly. It calls
+   `query()` with `skills: "all"`; the SDK discovers the skill and Claude
+   invokes it based on the description match in `SKILL.md`'s front matter.
 
 ## Setup
 
+Requires Node 18+.
+
 ```bash
-cd grade-agent
 npm install
-cp .env.example .env   # add ANTHROPIC_API_KEY
+cp .env.example .env   # set ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ## Run
 
 ```bash
+# grade the bundled sample data
 npm run grade
-# or with custom paths:
-node src/index.js --input mine.csv --output graded.csv --report report.md
+
+# or point at your own CSV
+node src/index.js \
+  --input  path/to/marks.csv \
+  --output path/to/graded.csv \
+  --report path/to/report.md \
+  --maxMark 50          # optional; defaults to 100
 ```
 
-## Use the skill without the LLM
-
-The skill is a normal CLI too — handy for testing or deterministic batch
-runs:
-
-```bash
-npm run skill:run     # grade the sample data
-npm run skill:test    # run the script's built-in self-test
-```
+Output defaults (when called directly without flags):
+- graded CSV → `data/output/graded.csv`
+- markdown report → `data/output/report.md`
 
 ## Editing the rules
 
-All rule changes are SKILL.md edits — nothing else needs to change:
+All rule changes go in the skill folder — nothing in `src/` needs to change.
 
-- Edit the **band table** to change grading thresholds.
-- Edit the **`graded-csv-spec` JSON block** to change CSV column shape.
-- Edit the **`report-template` markdown block** to change report layout.
-
-After a change, run `npm run skill:test` to confirm the parser still
-accepts the file.
+| What to change | Where |
+|---|---|
+| Grading thresholds (A, B+, etc.) | Band table in `SKILL.md` |
+| Output CSV column layout | `templates/graded.template.md` |
+| Report structure / sections | `templates/report.template.md` |
