@@ -1,0 +1,17 @@
+{
+  "name": "grade-agent",
+  "version": "0.1.0",
+  "description": "A Claude Agent SDK agent that grades a marks CSV using the bundled grade-csv skill.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "grade": "node src/index.js --input data/sample-marks.csv --output data/graded.csv --report data/report.md"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0"
+  }
+}
